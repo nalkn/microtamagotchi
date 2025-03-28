@@ -18,11 +18,3 @@ print(platform, version, "connected")
 backend.send_cmd("restart")
 backend.exit()
 ```
-
-### MicroBit_Simulator
-This class is based on (modified) [microTk](https://gitee.com/water_soul/microTk/) project.
-...
-#### Example :
-```python
-pass
-```
