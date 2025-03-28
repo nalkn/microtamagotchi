@@ -1,0 +1,4 @@
+pyserial>=3.5
+uflash>=2.0.0
+customtkinter>=5.2.2
+CTkMessagebox>=2.7

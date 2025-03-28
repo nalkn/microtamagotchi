@@ -1,0 +1,38 @@
+Micropython v2 versions (with lib) :
+
+
+
+MicroPython v1.18 on 2023-10-30; micro:bit v2.1.2 with nRF52833 (microbit.python editor)
+__main__          machine           power             urandom
+antigravity       math              radio             ustruct
+audio             microbit          speech            usys
+builtins          micropython       this              utime
+gc                music             uarray
+log               neopixel          ucollections
+love              os                uerrno
+
+-> correspond to hex_firmwares.RUNTIME_TEST
+
+
+
+MicroPython v1.15-64-g1e2f0d280 on 2021-06-30; micro:bit v2.0.0 with nRF52833 (uflash tool update)
+__main__          machine           os                uerrno
+antigravity       math              radio             urandom
+audio             microbit          speech            ustruct
+builtins          micropython       this              usys
+gc                music             uarray            utime
+love              neopixel          ucollections
+
+-> correspond to hex_firmwares.RUNTIME_1
+
+
+
+MicroPython v1.13 on 2021-03-16; micro:bit v2.0.0-beta.5 with nRF52833 (uflash tool)
+__main__          machine           os                ucollections
+antigravity       math              radio             uerrno
+audio             microbit          speech            urandom
+builtins          micropython       sys               ustruct
+gc                music             this              utime
+love              neopixel          uarray
+
+-> correspond to hex_firmwares.RUNTIME_0
