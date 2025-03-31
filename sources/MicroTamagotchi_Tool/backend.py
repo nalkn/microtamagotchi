@@ -69,15 +69,15 @@ class MicroBit_Backend:
             (["reset", "rst"], self._reset, ["restart"]),
             (["exec", "ex"], "exec", ["command"]),
             (["execfile", "exf"], "execfile", ["filename"]),
-    #        (["time", "t"], "get_time", None),
+    #        (["time", "t"], "get_time", None), # not work correctly
             (["exists", "exs"], "fs_exists", ["src"]),
             (["listdir", "ls"], "fs_listdir", None),
             (["platform", "p"], "fs_platform", None),
             (["version", "v"], "fs_version", None),
             (["st", "stat", "st"], "fs_stat", ["src"]),
             (["ct", "cat", "ct"], "fs_cat", ["src","chunk_size"]),
-            (["read_file", "rf"], "fs_readfile", ["src","chunk_size"]),
-            (["write_file", "wf"], "fs_writefile", ["src","chunk_size"]),
+    #        (["read_file", "rf"], "fs_readfile", ["src","chunk_size"]), # not work correctly
+    #        (["write_file", "wf"], "fs_writefile", ["src","chunk_size"]), # not work correctly
             (["copy", "cp"], "fs_cp", ["src","dest"]),
             (["get", "g"], "fs_get", ["src","dest"]),
             (["put", "p"], "fs_put", ["src"]),

@@ -10,31 +10,31 @@
 import os
 import sys
 import json
+import time
 from backend import MicroBit_Backend
 
-from PIL import Image, ImageTk
+from PIL import Image, ImageDraw, ImageTk
 import tkinter as tk
-from tkinter import filedialog
+from tkinter import filedialog # python >= 3.9
 import customtkinter as ctk
 from CTkMessagebox import CTkMessagebox
 from threading import Thread
 
 
+
 # constants
 PATH_PRJ = os.path.dirname(os.path.dirname(os.path.dirname(__file__))) # /
-#Thanks to Smashicons for app icon :
+# Thanks to Smashicons for app icon :
 # https://www.flaticon.com/free-icon/tamagotchi_1974720?term=tamagotchi&related_id=1974720
 PATH_LOG = os.path.join(PATH_PRJ, "data", "microtamagotchi_tool.log")
-PATH_ICON = os.path.join(PATH_PRJ, "data", "icon.ico") # data/icon.ico
-PATH_SETTINGS = os.path.join(PATH_PRJ, "data", "settings.json") # data/settings.json
+PATH_ICON_APP = os.path.join(PATH_PRJ, "data", "icon.ico") # data/icon.ico
+PATH_ICON_DELETE = os.path.join(PATH_PRJ, "data", "delete.ico") # data/delete.ico
+PATH_SETTINGS = os.path.join(PATH_PRJ, "data", "microtamagotchi_settings.json") # data/settings.json
 PATH_TEMP = os.path.join(PATH_PRJ, "data", "temp") # data/temp/
 
 
 # tempfiles
-if not os.path.exists(PATH_TEMP):
-    os.mkdir(PATH_TEMP)
-
-def temp_path(filename):
+def temp_path(filename:str) -> str:
     return os.path.join(PATH_TEMP, filename) # data/temp/[filename]
 
 
@@ -49,7 +49,7 @@ class CtkConnectStatus(ctk.CTkFrame):
             self,
             master,
             **kwargs
-        ):
+        ) -> None:
         # init frame
         super().__init__(master, **kwargs)
         # vars
@@ -58,7 +58,7 @@ class CtkConnectStatus(ctk.CTkFrame):
         # init widget
         self._setup_widgets()
 
-    def _setup_widgets(self):
+    def _setup_widgets(self) -> None:
         """Create internal widgets."""
         self.size = 20
         self._stat_canvas = ctk.CTkCanvas(
@@ -72,15 +72,16 @@ class CtkConnectStatus(ctk.CTkFrame):
         self.state_colors = {
             "connected": "#00FF00",
             "connecting": "#FFFF00",
-            "disconnected": "#FF0000"
+            "disconnected": "#FF0000",
+            "flashing": "#FFA500"
         }
         self._old_oval = None
 
-    def set_text(self, text):
+    def set_text(self, text:str) -> None:
         """Set the text of the connection status label."""
         self._tkvar_label.set(text)
 
-    def set_color(self, color=None):
+    def set_color(self, color:str=None) -> None:
         """Set th color of the ConnectStatus."""
         # delete old color oval
         if self._old_oval is not None:
@@ -96,7 +97,7 @@ class CtkConnectStatus(ctk.CTkFrame):
         )
         self.color = color
 
-    def set_from_state(self, state, set_text=True):
+    def set_from_state(self, state:str, set_text=True) -> None:
         """Set color (and text) from a state."""
         # try get color from state
         color = self.state_colors[state]
@@ -106,10 +107,12 @@ class CtkConnectStatus(ctk.CTkFrame):
         # set color
         self.set_color(color)
 
-    def set_from_vars(self, connected, connecting):
+    def set_from_vars(self, connected:bool, connecting:bool, flashing=False):
         """Set the colors from variables."""
         # get state from vars
-        if connected:
+        if flashing:
+            state = "flashing"
+        elif connected:
             state = "connected"
         else:
             if connecting:
@@ -122,36 +125,41 @@ class CtkConnectStatus(ctk.CTkFrame):
 class LED:
 
     """Led object for the Led Matrice Widget."""
+    # code inspired by microTk
 
-    def __init__(self):
-        self.value = 0
-        self.uptodate = False
-        self.cv = None
-
-    def color(self, fr, to, val):
+    @staticmethod
+    def color(val:int, fr=(10, 15, 10), to=(255, 30, 30)) -> str:
+        if val == -1:
+            return '#808080' # grey
         return '#%02x%02x%02x' % tuple(
             min(max(int(fr[i] + (to[i] - fr[i]) * val / 9), 0), 255)
             for i in range(3))
 
-    def create(self, cv, x, y, size):
+    def __init__(self) -> None:
+        self.value = 0
+        self.uptodate = False
+        self.cv = None
+
+    def create(self, cv, x:int, y:int, size:tuple) -> None:
         self.cv = cv
         self.inner = cv.create_rectangle(
             x - size[0],
             y - size[1],
             x + size[0],
             y + size[1],
-            outline="")
+            outline=""
+        )
         self.update()
 
-    def set(self, value):
-        self.value = max(0, (min(9, value)))
+    def set(self, value:int) -> None:
+        self.value = max(-1, (min(9, value)))
         self.uptodate = False
 
-    def update(self):
+    def update(self) -> None:
         if not self.uptodate:
             self.cv.itemconfig(
                 self.inner,
-                fill=self.color((10, 15, 10), (255, 30, 30), self.value))
+                fill=self.color(self.value))
         self.uptodate = True
 
 class CtkLedMatrice(ctk.CTkFrame):
@@ -160,11 +168,7 @@ class CtkLedMatrice(ctk.CTkFrame):
     Led Matrice Widget for create matrices with a color for microbit screen.
     """
 
-    def __init__(
-            self,
-            master,
-            **kwargs
-        ):
+    def __init__(self, master, **kwargs) -> None:
         # init frame
         super().__init__(master, **kwargs)
         # vars
@@ -175,11 +179,13 @@ class CtkLedMatrice(ctk.CTkFrame):
         self._setup_widgets()
         self._create_matrice()
         # tk binds
+        self.dclick_flag = False
         self._create_canvas.bind("<Button-1>", self._on_click)
+        self._create_canvas.bind("<Double-1>", self._on_dclick)
         self._create_canvas.bind("<MouseWheel>", self._on_scroll)
-        #NOTE: scroll function isn't supported on linux
+        #NOTE: scroll function is not supported on linux
 
-    def _setup_widgets(self):
+    def _setup_widgets(self) -> None:
         """Create internal widgets."""
         self._create_canvas = tk.Canvas(
             self, width=self.width, height=self.height,
@@ -188,7 +194,7 @@ class CtkLedMatrice(ctk.CTkFrame):
         )
         self._create_canvas.pack()
 
-    def _create_matrice(self):
+    def _create_matrice(self) -> None:
         """Create led matrice."""
         self._matrice = [[None] * 5 for _ in range(5)]
         for x in range(5):
@@ -202,47 +208,65 @@ class CtkLedMatrice(ctk.CTkFrame):
                     (int(self.led_size//2.4), int(self.led_size//2.4))
                 )
 
-    def _update_colors(self):
-        """Update colors of the led matrice"""
-        for x in range(5):
-            for y in range(5):
-                self._matrice[x][y].update()
-
-    def _get_select(self, event):
-        """Get a led selected by the mousepointer."""
+    def _get_select(self, event) -> None:
+        """Get the led selected by the mousepointer."""
         led_x, led_y = int(event.x // self.led_size), int(event.y // self.led_size)
         if 0 <= led_x < 5 and 0 <= led_y < 5:
             return self._matrice[led_y][led_x]
         return None
 
-    def _on_click(self, event):
+    def _on_click(self, event) -> None:
         """Click event."""
+        self.dled = None
         led = self._get_select(event)
-        if led:
-            if led.value == 9: led.set(0)
-            else: led.set(9)
-            self._update_colors()
+        self.after(200, self._click_action, led)
 
-    def _on_scroll(self, event):
+    def _on_dclick(self, event) -> None:
+        """Double Click event."""
+        self.dled = self._get_select(event)
+        self.dclick_flag = True
+
+    def _click_action(self, led:LED) -> None:
+        """Click action."""
+        # code inspired by :
+        # https://stackoverflow.com/questions/27262580/tkinter-binding-mouse-double-click
+        if self.dled != led:
+            self.dclick_flag = False
+        if led:
+            if self.dclick_flag:
+                if led.value == -1: led.set(0)
+                else: 
+                    led.set(-1)
+                led.update()
+                self.dclick_flag = False
+            else:
+                if led.value == 9: led.set(0)
+                else: led.set(9)
+                led.update()
+
+    def _on_scroll(self, event) -> None:
         """Scroll event."""
         led = self._get_select(event)
         if led:
-            led.set(led.value + 1 if event.delta > 0 else -1)
-            self._update_colors()
-
-    def get(self):
-        """Get the self matrice !"""
-        return self._matrice
+            led.set(led.value + 1 if event.delta > 0 else led.value - 1)
+            led.update()
     
-    def _strip_values(self, matrice):
-        """Strip the matrice if lines of pixel are unused for optimise."""
-        
+    def get_matrice_values(self) -> list[list]:
+        """Get a copy of the matrice, leds remplaced by their values."""
+        temp_matrice = [[None for _ in range(5)] for _ in range(5)] #(else, err and modify self._matrice)
+        for x in range(5):
+            for y in range(5):
+                temp_matrice[x][y] = self._matrice[x][y].value
+        return temp_matrice
+
+    def _strip_values(self, matrice:list[list]) -> list[list]:
+        """Strip the matrice if lines of pixel are unused for optimise data."""
         # split col before
         col_indx_first = 0
         for y in range(5):
             sum = 0
             for x in range(5):
-                sum += matrice[x][y].value
+                sum += matrice[x][y]
             if sum != 0:
                 col_indx_first = y
                 break
@@ -251,11 +275,11 @@ class CtkLedMatrice(ctk.CTkFrame):
         for y in range(4,-1, -1):
             sum = 0
             for x in range(4,-1, -1):
-                sum += matrice[x][y].value
+                sum += matrice[x][y]
             if sum != 0:
                 col_indx_last = y
                 break
-        # check empty (0) matrice
+        # check empty (0 value) matrice
         if col_indx_first == 0 and col_indx_last == 0:
             return None
 
@@ -264,7 +288,7 @@ class CtkLedMatrice(ctk.CTkFrame):
         for x in range(5):
             sum = 0
             for y in range(5):
-                sum += matrice[x][y].value
+                sum += matrice[x][y]
             if sum != 0:
                 row_indx_first = x
                 break
@@ -273,55 +297,132 @@ class CtkLedMatrice(ctk.CTkFrame):
         for x in range(4,-1, -1):
             sum = 0
             for y in range(4,-1, -1):
-                sum += matrice[x][y].value
+                sum += matrice[x][y]
             if sum != 0:
                 row_indx_last = x
                 break
-
-        # get values matrice
-        temp_matrice = [[None for _ in range(5)] for _ in range(5)] #(else, err and modify self._matrice)
-        for x in range(5):
-            for y in range(5):
-                temp_matrice[x][y] = matrice[x][y].value
 
         # temp lists
         _new_matrice = []
         new_matrice = []
 
         # split cols
-        for row in temp_matrice:
+        for row in matrice:
             _new_matrice.append(row[col_indx_first:col_indx_last+1])
         # split rows
         for indx, col in enumerate(_new_matrice):
             if indx >= row_indx_first and indx <= row_indx_last:
                 new_matrice.append(col)
 
-        # tests
-#        print(col_indx_first,col_indx_last, "tst", row_indx_first, row_indx_last)
+        # test for print splitted matrice
+#        print(col_indx_first, col_indx_last, "tst", row_indx_first, row_indx_last)
 #        for row in new_matrice:
 #            for led in row:
-#                led.set(5)
-#                led.update()
+#                led.set(5); led.update()
 
         # return
         return new_matrice
 
-    def _matrice_to_list(self, matrice):
-        """Return a matrice and size from a list."""
-        final_list = []
-        size = [len(matrice), len(matrice[0])]
+    def _matrice_to_list(self, matrice:list[list]) -> list:
+        """Return a list and size from a matrice."""
+        size = [len(matrice[0]), len(matrice)]
+        matrice_list = []
         for row in matrice:
-            final_list.extend(row)
-        return final_list, size
+            matrice_list.extend(row)
+        return [matrice_list, size]
 
-    def get_values(self):
+    def get_frame(self) -> list | None:
         """Convert the matrice to an optimized list of values."""
-        # get splitted matrice
-        matrice = self._strip_values(self._matrice)
+        # get values of the matrice
+        matrice = self.get_matrice_values()
+
+        # get stripped matrice
+        matrice = self._strip_values(matrice)
 
         # return matrice
         if matrice is not None:
             return self._matrice_to_list(matrice)
+
+    def clear_values(self) -> None:
+        """Clear the matrice."""
+        for x in range(5):
+            for y in range(5):
+                led = self._matrice[x][y]
+                led.set(0)
+                led.update()
+
+
+class CharacterScrollableFrame(ctk.CTkScrollableFrame):
+
+    """ScrollableFrame with miniatures for add a Character in the MicroTamagotchi."""
+    # code inspired by https://customtkinter.tomschimansky.com/tutorial/scrollable-frames/
+
+    def __init__(self, master, width=120) -> None:
+        super().__init__(master, width, label_text="Frames")
+        self.del_icon = ctk.CTkImage(Image.open(PATH_ICON_DELETE))
+        self.nb_frames = 0
+        self.miniatures_frames = []
+        self.character_frames = {}
+
+    def suppr(self, miniature_frame, id_data:int) -> None:
+        """Delete a frame of the CharacterScrollableFrame and his data."""
+        miniature_frame.destroy()
+        self.character_frames.pop(id_data)
+
+    def add(self, matrice:list, character_frame:list) -> None:
+        """Add a frame to the CharacterScrollableFrame."""
+        miniature_size = 40
+        # create miniature
+        size = (miniature_size, miniature_size)
+        miniature = Image.new('RGBA', size)
+        draw = ImageDraw.Draw(miniature)
+        led_size = int(miniature_size // 5)
+        for x in range(5):
+            for y in range(5):
+                st, nd = y*led_size, x*led_size
+                draw.rectangle(
+                    [(st,nd), (st+led_size,nd+led_size)], 
+                    fill=LED.color(matrice[x][y])
+                )
+        ctk_miniature = ctk.CTkImage(miniature, size=size)
+        # create miniature_frame
+        miniature_frame = ctk.CTkFrame(self)
+        miniature_frame.grid(row=self.nb_frames, column=0, padx=10, pady=(10, 0), sticky="w")
+        id = self.nb_frames
+        # display miniature and del button widgets
+        ctk.CTkLabel(
+            miniature_frame, 
+            text="",
+            image=ctk_miniature
+        ).grid(row=0, column=0, padx=(10,5), pady=10)
+        ctk.CTkButton(
+            miniature_frame,
+            width=30,
+            text="",
+            image=self.del_icon,
+            command=lambda: self.suppr(miniature_frame, id)
+        ).grid(row=0, column=1, padx=(5,10), pady=10)
+        # append value
+        self.miniatures_frames.append(miniature_frame) # for destroy all
+        self.character_frames[id] = character_frame
+        self.nb_frames += 1
+
+    def clear(self) -> None:
+        """Clear the CharacterScrollableFrame and all data."""
+        # delete all frames
+        for frame in self.miniatures_frames:
+            frame.destroy()
+        # delete all data
+        self.nb_frames = 0
+        self.miniatures_frames = []
+        self.character_frames = {}
+
+    def get(self) -> list:
+        """Get all data frames of the CharacterScrollableFrame."""
+        data = []
+        for character_frame in self.character_frames.values():
+            data.append(character_frame)
+        return data
 
 
 # App
@@ -334,14 +435,17 @@ class MicroTamagochi_Tool():
     NOTE: This program use a personalized version of pyboard.py tool.
     """
 
-    def __init__(self):
+    jsonfile_uuid = "ba1f4ccc-efc6-4766-8111-30408e2feb5d" # created with https://www.uuidgenerator.net/
+
+    def __init__(self) -> None:
         # init app
         self.root = ctk.CTk()
-        self.root.title("Micro:Tamagochi Tool")
+        self.root.title("MicroTamagochi Tool")
         self.root.protocol("WM_DELETE_WINDOW", self.exit)
         ctk.set_appearance_mode("dark")
 
         # create app widgets
+        self.mt_settings = None
         self.setup_widgets()
 
         # init connect backend
@@ -350,17 +454,21 @@ class MicroTamagochi_Tool():
             logfile_path=PATH_LOG
         )
 
+        # create temp dir
+        try:
+            if not os.path.exists(PATH_TEMP):
+                os.mkdir(PATH_TEMP)
+        except:
+            self.backend.log.error(f"cannot create temp directory ({PATH_TEMP}) !")
+
         # load settings
         self.load_settings()
-        self.load_mt_settings()
 
         # set widget need settings
         self.restart_after_optm.set("Restart" if self.get_setting("restart_after_flash") else "Stay Connected")
 
         # variables
         self.need_save = False
-        self.file_saved = False
-        self.file_imported = False
         self.need_load_mt_settings = True
 
         # center app on the screen make this not resizable
@@ -371,15 +479,15 @@ class MicroTamagochi_Tool():
 
         # launch root
         if sys.platform == "linux":
-            self.iconpath = ImageTk.PhotoImage(Image.open(PATH_ICON))
+            self.iconpath = ImageTk.PhotoImage(Image.open(PATH_ICON_APP))
             self.root.wm_iconphoto(True, self.iconpath)
         elif sys.platform == "win32":
-            self.root.iconbitmap(PATH_ICON)
+            self.root.iconbitmap(PATH_ICON_APP)
         self.root.mainloop()
 
     # --- Interface ---
 
-    def setup_widgets(self):
+    def setup_widgets(self) -> None:
         """Create all widgets of the application."""
         #left frame
         sidebar_frame = ctk.CTkFrame(self.root, width=80, corner_radius=0)
@@ -388,84 +496,94 @@ class MicroTamagochi_Tool():
         self.conn_status = CtkConnectStatus(sidebar_frame)
         self.conn_status.grid(row=0, column=0, pady=(10,5))
         
-        import_file_button = ctk.CTkButton(
-            sidebar_frame, text="Import File", command=self.cmd_import_file_from_computer
+        self.import_file_btn = ctk.CTkButton(
+            sidebar_frame, text="Import Conf", command=self.cmd_import_conf
         )
-        import_file_button.grid(row=1, column=0, padx=20, pady=(10,5))
+        self.import_file_btn.grid(row=1, column=0, padx=20, pady=(10,5))
         
-        new_file_button = ctk.CTkButton(sidebar_frame, text="New File", command=None)
-        new_file_button.grid(row=2, column=0, padx=20, pady=(10,5))
+        self.save_file_btn = ctk.CTkButton(sidebar_frame, text="Save Conf", command=self.cmd_save_conf)
+        self.save_file_btn.grid(row=2, column=0, padx=20, pady=(10,5))
+
+        self.create_character_frames = CharacterScrollableFrame(sidebar_frame)
+        self.create_character_frames.grid(row=3, column=0, padx=20, pady=20)
         
-        save_file_button = ctk.CTkButton(sidebar_frame, text="Save File", command=None)
-        save_file_button.grid(row=3, column=0, padx=20, pady=(10,5))
-        
-        self.files_frame = ctk.CTkScrollableFrame(sidebar_frame, width=120)
-        self.files_frame.grid(row=4, column=0, padx=20, pady=20)
         #right tabview
-        self.tabview = ctk.CTkTabview(self.root, height=400, width=500)
-        self.tabview.grid(row=0, column=1, padx=20, pady=(5,10), sticky="nsew")
+        self.tabv = ctk.CTkTabview(self.root, height=400, width=500)
+        self.tabv.grid(row=0, column=1, padx=20, pady=(5,10), sticky="nsew")
 
         #connect
-        connect_tab = self.tabview.add("Connect")
+        connect_tab = self.tabv.add("Connect")
         connect_tab.grid_columnconfigure((0,1), weight=1)
 
         frame_up = ctk.CTkFrame(connect_tab)
-        self.var_txt_btn_connect = ctk.StringVar()
-        self.var_connect_status = ctk.StringVar()
-        self.conn_button = ctk.CTkButton(
+        self.tkvar_txt_btn_connect = ctk.StringVar()
+        self.tkvar_connect_status = ctk.StringVar()
+        self.conn_btn = ctk.CTkButton(
             frame_up, 
-            textvariable=self.var_txt_btn_connect,
+            textvariable=self.tkvar_txt_btn_connect,
             command=self.cmd_connect_stop_or_disconnect
         )
-        self.conn_button.grid(row=0, column=0, padx=10, pady=10)
+        self.conn_btn.grid(row=0, column=0, padx=10, pady=10)
         
-        status_conn_label = ctk.CTkLabel(frame_up, textvariable=self.var_connect_status)
-        status_conn_label.grid(row=0, column=1, padx=10, pady=10)
+        status_conn_lb = ctk.CTkLabel(frame_up, textvariable=self.tkvar_connect_status)
+        status_conn_lb.grid(row=0, column=1, padx=10, pady=10)
         
         self.connect_status_pbar = ctk.CTkProgressBar(frame_up, width=300)
         self.connect_status_pbar.grid(row=1, column=0, columnspan=2, pady=15)
         frame_up.pack(pady=55)
 
         frame_down = ctk.CTkFrame(connect_tab)
-        self.var_txt_btn_flash = ctk.StringVar()
-        self.var_flash_status = ctk.StringVar()
-        self.flash_button = ctk.CTkButton(
+        self.tkvar_txt_btn_flash = ctk.StringVar()
+        self.tkvar_flash_status = ctk.StringVar()
+        self.flash_btn = ctk.CTkButton(
             frame_down,
-            textvariable=self.var_txt_btn_flash,
+            textvariable=self.tkvar_txt_btn_flash,
             command=self.cmd_flash_initial_firmware
         )
-        self.flash_button.grid(row=0, column=0, padx=10, pady=10)
+        self.flash_btn.grid(row=0, column=0, padx=10, pady=10)
         
-        status_flash_label = ctk.CTkLabel(frame_down, textvariable=self.var_flash_status)
-        status_flash_label.grid(row=0, column=1, padx=10, pady=10)
+        status_flash_lb = ctk.CTkLabel(frame_down, textvariable=self.tkvar_flash_status)
+        status_flash_lb.grid(row=0, column=1, padx=10, pady=10)
         
         self.flash_status_pbar = ctk.CTkProgressBar(frame_down, width=300, indeterminate_speed=.4)
         self.flash_status_pbar.grid(row=1, column=0, columnspan=2, pady=15)
         frame_down.pack()
 
         #create
-        create_tab = self.tabview.add("Create")
+        create_tab = self.tabv.add("Create")
+        create_tab.grid_columnconfigure((0,1), weight=1)
+        create_tab.grid_rowconfigure(0, weight=1)
         
         self.create_leds = CtkLedMatrice(create_tab)
-        self.create_leds.grid(row=0, column=0, pady=10, columnspan=2)
-        
-        ctk.CTkLabel(create_tab, text="Figure Name").grid(row=1, column=0, padx=10)
-        self.entry_name_figure = ctk.CTkEntry(create_tab)
-        self.entry_name_figure.grid(row=2, column=0, padx=10)
-        
-        self.btn_add_perso = ctk.CTkButton(
-            create_tab, 
-            text = "Add Figure",
-            command = self.add_figure_frame
+        self.create_leds.grid(row=0, column=0, pady=50, rowspan=5)
+
+        frame_right = ctk.CTkFrame(create_tab)
+        add_frame_btn = ctk.CTkButton(
+            frame_right, text = "Add Frame",
+            command = self.cmd_add_frame_to_character
         )
-        self.btn_add_perso.grid(row=1, column=1, padx=10, rowspan=2)
-        create_tab.columnconfigure((0,1), weight=1)
+        add_frame_btn.pack(pady=(10,5))
 
-        #TODO: pouvoir ajouter cette image dans une scrollableframe (qui peut en contenir plusieures)
+        clear_character_btn = ctk.CTkButton(
+            frame_right, text="Clear Frames", 
+            command=self.create_character_frames.clear
+        )
+        clear_character_btn.pack(pady=(10,5))
 
+        ctk.CTkLabel(frame_right, text="Character Name").pack(pady=(40,0))
+        self.character_name_entry = ctk.CTkEntry(frame_right)
+        self.character_name_entry.pack(pady=5)
+        
+        self.add_character_btn = ctk.CTkButton(
+            frame_right, text="Add Character", 
+            command=self.cmd_add_character
+        )
+        self.add_character_btn.pack(pady=(10,5))
+        frame_right.grid(row=0, column=1)
+        
         #settings/infos
-        settings_tab = self.tabview.add("Settings")
-        settings_tab.grid_columnconfigure(0, weight=1)
+        settings_tab = self.tabv.add("Settings")
+        settings_tab.grid_columnconfigure((0,1), weight=1)
 
         ctk.CTkLabel(settings_tab, text="After Flash :").pack(pady=(10,5))
         self.restart_after_optm = ctk.CTkOptionMenu(
@@ -474,47 +592,25 @@ class MicroTamagochi_Tool():
         )
         self.restart_after_optm.pack(pady=(5,10))
         
-        ctk.CTkLabel(settings_tab, text="Figure selected :").pack(pady=(10,5))
-        self.figure_selected_optm = ctk.CTkOptionMenu(
+        ctk.CTkLabel(settings_tab, text="Character selected :").pack(pady=(10,5))
+        self.character_selected_optm = ctk.CTkOptionMenu(
             settings_tab,
-            command = self.cmd_optm_figure_selected
+            command = self.cmd_optm_character_selected
         )
-        self.figure_selected_optm.pack(pady=(5,10))
+        self.character_selected_optm.pack(pady=(5,10))
 
-        self.conn_port = ctk.CTkLabel(settings_tab)
-        self.conn_port.pack(pady=10)
+        self.conn_port_lb = ctk.CTkLabel(settings_tab, text="Connected Port : None")
+        self.conn_port_lb.pack(pady=10)
 
         #TODO: choisir la chemin d'accès au simulateur tests (et pouvoir l'utiliser dans l'app)
-
-    def set_tab_settings(self, connected=False):
-        """Set the widgets in the settings tab."""
-        #TODO: a finir
-
-        # set figures list and selected
-        if not connected:
-            self.figure_selected_optm.configure(state="disabled")
-            self.figures_list = ["None"]
-        else:
-            self.figure_selected_optm.configure(state="normal")
-            self.figures_list = ["None"]
-
-        self.figure_selected_optm.configure(values=self.figures_list)
-        self.figure_selected_optm.set(self.figures_list[0])
-
-        # show conn port
-        self.conn_port.configure(text=f"Connected Port : {self.backend.port}")
-
-    def cmd_optm_figure_selected(self):
-        """Set the selected figure in MicroTamagotchi Settings."""
-        #TODO: get microbit settings
-        #TODO: update settings in microbit
 
     def show_connection_status(
             self, 
             connected, connecting, connect_failed, 
             flashed, flashing, flash_failed,
-            flash_hex_info, *args
-        ):
+            flash_hex_info, 
+            *args
+        ) -> None:
         """Show connect and flash status."""
         pbar_c, conn_status = self.connect_status_pbar, self.conn_status
         pbar_f = self.flash_status_pbar
@@ -528,7 +624,9 @@ class MicroTamagochi_Tool():
             if self.need_load_mt_settings:
                 Thread(target=self.load_mt_settings).start()
                 self.need_load_mt_settings = False
-            self.btn_add_perso.configure(state="normal")
+            self.add_character_btn.configure(state="normal")
+            self.import_file_btn.configure(state="normal")
+            self.save_file_btn.configure(state="normal")
         elif connecting:
             txt_btn, status = "Stop", "Connecting ..."
             pbar_c.configure(mode="indeterminnate")
@@ -543,7 +641,11 @@ class MicroTamagochi_Tool():
             pbar_c.configure(mode="determinate")
             pbar_c.set(0)
             self.need_load_mt_settings = True
-            self.btn_add_perso.configure(state="disabled")
+            self.mt_settings = None
+            self.add_character_btn.configure(state="disabled")
+            self.import_file_btn.configure(state="disabled")
+            self.save_file_btn.configure(state="disabled")
+            self.set_tab_settings()
         # flash status
         if flashed:
             flash_txt_btn, flash_status = "Re-Flash", "Flashed !"
@@ -574,21 +676,44 @@ class MicroTamagochi_Tool():
             pbar_f.configure(mode="determinate")
             pbar_f.set(0)
         # set windgets
-        self.conn_button.configure(state=conn_btn_state)
-        conn_status.set_from_vars(connected, connecting)
-        self.var_txt_btn_connect.set(txt_btn)
-        self.var_connect_status.set("Status : "+status)
-        self.flash_button.configure(state=flash_btn_state)
-        self.var_txt_btn_flash.set(flash_txt_btn)
-        self.var_flash_status.set("Status : "+flash_status)
+        self.conn_btn.configure(state=conn_btn_state)
+        conn_status.set_from_vars(connected, connecting, flashing)
+        self.tkvar_txt_btn_connect.set(txt_btn)
+        self.tkvar_connect_status.set("Status : "+status)
+        self.flash_btn.configure(state=flash_btn_state)
+        self.tkvar_txt_btn_flash.set(flash_txt_btn)
+        self.tkvar_flash_status.set("Status : "+flash_status)
+
+    def set_tab_settings(self) -> None:
+        """Set the widgets in the settings tab."""
+        # set characters list and selected
+        if self.mt_settings is None:
+            self.character_selected_optm.configure(state="disabled")
+            characters_list = ["None"]
+            character_selected = characters_list[0]
+        else:
+            self.character_selected_optm.configure(state="normal")
+            characters_list = self.mt_settings["characters_list"]
+            character_selected = self.mt_settings["character"]
+
+        # show selected character
+        self.character_selected_optm.configure(values=characters_list)
+        self.character_selected_optm.set(character_selected)
+
+        # show conn port
+        try:
+            if not self.backend.connected: raise
+            conn_port_lb = self.backend.port
+        except:
+            conn_port_lb = None
+        self.conn_port_lb.configure(text=f"Connected Port : {conn_port_lb}")
 
     # --- Settings ---
 
-    def load_settings(self):
+    def load_settings(self) -> None:
         """Load settings form a json file."""
         default_settings = {
-            "restart_after_flash": False,
-            "microbit_figure": None
+            "restart_after_flash": False
         }
         self.settings = default_settings
         self.settingsfile_found = True
@@ -604,84 +729,150 @@ class MicroTamagochi_Tool():
             self.settingsfile_found = False
             self.backend.log.error("can't load/save settings in/from a file !")
 
-    def save_settings(self, settings=None):
+    def save_settings(self, settings=None) -> None:
         """Save settings in a json file."""
         if not settings:
             settings = self.settings
         with open(PATH_SETTINGS, "w") as w_stt:
             json.dump(self.settings, w_stt)
 
-    def get_setting(self, setting:str):
+    def get_setting(self, setting:str) -> dict:
         """Get a setting value."""
         return self.settings[setting]
 
-    def set_setting(self, setting:str, val, save=True):
+    def set_setting(self, setting:str, val:str, save=True) -> None:
         """Set setting to a value."""
         self.settings[setting] = val
         if save and self.settingsfile_found: 
             self.save_settings()
 
-    def load_mt_settings(self):
-        """Load settings from the MicroTamagotchi."""
-        settfile = 'settings.mtd'
-        tempfile = temp_path(settfile)
-        # get data in a tempfile
-        self.backend.send_cmd(f"get", (settfile, tempfile))
-        try:
-            with open(tempfile, "r") as rf:
-                # actualize mt_settings
-                self.mt_settings = eval(rf.read())
-            # remove tempfile
+    def read_mt_file(self, file, remove=True) -> dict:
+        """Get a mt file and read his content."""
+        # create tempfile
+        tempfile = temp_path(file)
+        # get file
+        self.backend.send_cmd("get", (file, tempfile)) # get the file at the path tempfile
+        with open(tempfile, "r") as rf:
+            # load data
+            data = eval(rf.read())
+        # remove tempfile
+        if remove:
             os.remove(tempfile)
-        except Exception as e:
-            self.mt_settings = None
+        # return data
+        return data
 
+    def write_mt_file(self, file, data, remove=True) -> None:
+        """Write data in a file and put this."""
+        # create tempfile
+        tempfile = temp_path(file)
+        # write data in a tempfile
+        with open(tempfile, "w") as rw:
+            rw.write(repr(data))
+        # send tempfile
+        self.backend.send_cmd(f"put", (tempfile,)) # put the modified tempfile (with data)
+        # remove temp file
+        if remove:
+            os.remove(tempfile)
+
+    def load_mt_settings(self, wait=0.5) -> None:
+        """Load settings from the MicroTamagotchi."""
+        # setting file
+        settfile = 'settings.mtd'
+        # sleep a little (wait connected cmd executed)
+        st = time.time()
+        while time.time() - st < wait: time.sleep(0.05)
+        # get data in a tempfile
+        try:
+            # get mt settings data
+            self.mt_settings = self.read_mt_file(settfile)
+            # actualize save var
+            self.need_save = True
+        except:
+            self.mt_settings = None
+        # actualize settings tab widgets
         self.set_tab_settings()
 
-    def save_mt_settings(self):
+    def save_mt_settings(self) -> bool:
         """Save settings in MicroTamagotchi."""
+        # setting file
         settfile = 'settings.mtd'
-        tempfile = temp_path(settfile)
-
+        # try to get settings
         if self.mt_settings is not None:
-            # write data
-            with open(tempfile, "w") as rw:
-                rw.write(repr(self.mt_settings))
-            # rm temp file
-            self.backend.send_cmd(f"put", (tempfile,))
-            os.remove(tempfile)
+            try:
+                # save mt settings
+                self.write_mt_file(settfile, self.mt_settings)
+            except:
+                return False
+            else:
+                return True
 
     # --- Other ---
 
-    def add_figure_to_mt(self, name, figure, size):
-        """Insert a figure in microTamagotchi."""
+    def add_character_to_mt(self, name:str, new_character:list) -> None:
+        """Insert a character in microTamagotchi."""
         # create data
         fig_data = {
-            "size": size,
-            "delay": 200,
-            "data": figure
+            "delay": 300, #TODO: add delay btn
+            "data": new_character
         }
         imgfile = 'images.mtd'
-        tempfile = temp_path(imgfile)
 
-        # get data
-        self.backend.send_cmd(f"get", (imgfile, tempfile))
-        with open(tempfile, "r") as rf:
-            data = eval(rf.read())
-        data[name] = fig_data
+        #add new character
+        try:
+            # read and modify data
+            data_imgs = self.read_mt_file(imgfile)
+            data_imgs[name] = fig_data # erase character with same name
+            # write data
+            self.write_mt_file(imgfile, data_imgs)
 
-        # write data
-        with open(tempfile, "w") as rw:
-            rw.write(repr(data))
+            # save new character name in settings
+            if name not in self.mt_settings["characters_list"]:
+                self.mt_settings["characters_list"].append(name) # check character name
+            self.save_mt_settings()
+            self.need_save = True
+        except:
+            return False
+        else:
+            return True
+    
+    def save_configurations(self) -> bool:
+        """Save MicroTamagotchi configuration in a .json file."""
+        action = CTkMessagebox(
+            title="Save Data & Exit ?", icon="question", 
+            message="Do you want to save actual MicroTamagotchi configurations in a file ?",
+            option_1="Cancel", option_2="No", option_3="Yes"
+        ).get()
+        if action == "Yes":
+            self.cmd_save_conf()
+            return True
+        elif action == "No":
+            return True
+        else:
+            return False
 
-        # rm temp file
-        self.backend.send_cmd(f"put", (tempfile,))
-        os.remove(tempfile)
 
+    # --- Widgets Commands ---
 
-    # --- Commands ---
+    def cmd_optm_character_selected(self, character:list) -> None:
+        """Set the selected character in MicroTamagotchi Settings."""
+        # change setting
+        self.mt_settings["character"] = character
 
-    def cmd_connect_stop_or_disconnect(self):
+        # save settingg
+        if self.save_mt_settings():
+            self.create_leds.clear_values()
+            CTkMessagebox(
+                title="Info", icon="info",
+                message=f"Character '{character}' is selected on the MicroTamagotchi !"
+            )
+            self.need_save = True
+        else:
+            CTkMessagebox(
+                title="Warning !", icon="warning",
+                message=f"Selection of Character '{character}' on the MicroTamagotchi failed !" 
+            )
+
+    def cmd_connect_stop_or_disconnect(self) -> None:
         """Connect or disconnect the microbit"""
         if self.backend.connected:
             self.backend.send_cmd("restart")
@@ -689,80 +880,172 @@ class MicroTamagochi_Tool():
             self.backend.connecting = not self.backend.connecting
         self.backend.show_conn_stat()
 
-    def cmd_flash_initial_firmware(self):
+    def cmd_flash_initial_firmware(self) -> None:
         """Flash the initial firmware of the microtamagotchi with data."""
-        msg_check = "Flash a firmware will erase all data ! \
-        Do you want to flash the project in micro:bit ?"
         if CTkMessagebox(
-            title="Warning !", message=msg_check, icon="warning", 
+            title="Warning !", icon="warning", 
+            message="Flash a firmware will erase all data ! "+
+                    "Do you want to flash the project in micro:bit ?",
             option_1="Cancel", option_2="No", option_3="Yes"
         ).get() == "Yes":
             self.backend.flashing = True
         self.backend.show_conn_stat()
 
-    def add_figure_frame(self):
-        """Add a frame in list of frames."""
-        values = self.create_leds.get_values()
-        name = self.entry_name_figure.get()
-        if values is not None and name != None:
-            figure, size = values
-            self.add_figure_to_mt(name, figure, size)
+    def cmd_add_frame_to_character(self) -> None:
+        """Add a frame to the character to add to MicroTamagotchi."""
+        # get actual led matrice
+        character_frame = self.create_leds.get_frame()
+        # add led matrice
+        if character_frame is not None:
+            # add frame to character
+            self.create_character_frames.add(
+                matrice = self.create_leds.get_matrice_values(),
+                character_frame = character_frame
+            )
+            self.create_leds.clear_values()
 
-    def cmd_optm_restart_after(self, value):
-        """Set the parameter 'restart_after_flash'."""
-        restart =  value == "Restart"
+    def cmd_add_character(self) -> None:
+        """Add a character to the MicroTamagotchi."""
+        # check user data
+        new_character = self.create_character_frames.get()
+        if new_character == []:
+            CTkMessagebox(
+                title="Info", icon="info",
+                message="Create at least a pixels frame for your character !" 
+            )
+            return
+        name = self.character_name_entry.get()
+        if name == "":
+            CTkMessagebox(
+                title="Info", icon="info",
+                message="Name your character !"
+            )
+            return
+        # add character
+        if self.add_character_to_mt(name, new_character):
+            # clear data on widgets
+            self.character_name_entry.delete(0, "end")
+            self.create_character_frames.clear()
+            self.load_mt_settings(wait=0)
+            # show msg ok
+            CTkMessagebox(
+                title="Info", icon="info",
+                message=f"Character '{name}' saved in the MicroTamagotchi !"
+            )
+        else:
+            CTkMessagebox(
+                title="Warning !", icon="warning",
+                message=f"Save of character '{name}' in the MicroTamagotchi failed !"
+            )
+
+    def cmd_optm_restart_after(self, value:str) -> None:
+        """Set the parameter 'restart_after_flash' for the backend."""
+        restart = value=="Restart"
         self.set_setting(
             "restart_after_flash",
             restart
-        )   
-        self.backend.restart_after_flash = restart
-
-    def cmd_import_file_from_computer(self):
-        """Choose a data file to import."""
-        file = filedialog.askopenfilename(
-            filetypes=[('Data', '*.json'), ('All Files', '*.*')]
         )
-        if os.path.exists(file):
-            pass
+        self.backend.restart_after_flash = restart
+    
+    def cmd_import_conf(self) -> None:
+        """Import configurations from a .json file."""
+        # search file
+        file = filedialog.askopenfilename(
+            title="Import MicroTamagotchi Configurations",
+            filetypes=[('data', '*.json')]
+        )
 
-    def cmd_export_file_in_computer(self):
-        """Export a file in computer."""
-        pass
+        if file is not None:
+            # read conf file    
+            with open(file, "r") as r_conf:
+                data_conf = json.load(r_conf)
+            # check uuid
+            if self.jsonfile_uuid == data_conf['uuid']:
+                # extract data
+                self.mt_settings = data_conf["settings"]
+                images = data_conf["images"]
+                # unformat data (from more readable data in json file)
+                for chr in images:
+                    for indx, data in enumerate(images[chr]["data"]):
+                        images[chr]["data"][indx] = eval(data)
+                # send conf data
+                self.save_mt_settings()
+                self.set_tab_settings()
+                self.write_mt_file('images.mtd', images)
+                # show ok
+                CTkMessagebox(
+                    title="Info", icon="info",
+                    message=f"Configurations imported from a file !"
+                )
 
-    def cmd_import_file_from_microbit(self):
-        """Import a file from microbit."""
-        pass
+            else:
+                CTkMessagebox(
+                    title="Warning !", icon="warning",
+                    message="Configuration file is not valid, can't import this !"
+                )
 
-    def cmd_export_file_in_microbit(self):
-        """Export a file in microbit."""
-        pass
+    def cmd_save_conf(self) -> None:
+        """Save configurations in a .json file."""
+        file_conf = filedialog.asksaveasfile(
+            title="Save MicroTamagotchi Configurations",
+            initialfile="microtamagotchi_conf.json",
+            filetypes=[('data', '*.json')], 
+            defaultextension=".json"
+        )
+        if file_conf is not None:
+            # get images
+            images = self.read_mt_file("images.mtd")
+            # format a little the data for more visibility when read json conf file
+            for chr in images:
+                for indx, data in enumerate(images[chr]["data"]):
+                    images[chr]["data"][indx] = repr(data)
+            # create conf
+            data_conf = {
+                "uuid": self.jsonfile_uuid, # unique id for recognize microtamagotchi_confs
+                "settings": self.mt_settings, # settings are already loaded
+                "images": images # actual images of the microtamagotchi
+            }
+            # save conf
+            json.dump(data_conf, file_conf, indent=4)
+            self.need_save = False
+            # close file
+            file_conf.close()
 
-    # --- Other ---
+    # --- Exit ---
 
-    def save_work(self):
-        """Save ... in a .json file."""
-        msg_save = "Do you want to save your work in a file ?"
-        if self.need_save:
-            if CTkMessagebox(
-                title="Save ?", message=msg_save, icon="question", 
-                option_2="No", option_3="Yes"
-            ).get() == "Yes":
-                pass
-
-    def exit(self):
+    def _exit(self, wait=True) -> None:
         """Quit application and close the serial."""
-        # save work in a file if needed
-        if self.need_save:
-            self.save_work()
-        # ask quit app
-        msg_quit = "Do you want to close this program ?"
-        if CTkMessagebox(
-            title="Exit ?", message=msg_quit, icon="question", 
-            option_1="Cancel", option_2="No", option_3="Yes"
-        ).get() == "Yes":
+        # quit backend
+        if wait: 
             self.backend.send_cmd("restart")
-            self.backend.exit()
-            self.root.destroy()
+        self.backend.exit(wait)
+        # destroy app
+        self.root.destroy()
+        # quit even if backend threads running
+        os._exit(0)
+
+    def exit(self) -> None:
+        """Quit application and close the serial."""
+        # save configurations in a file if needed
+        if self.need_save and self.backend.connected:
+            if self.save_configurations():
+                # exit app if "Cancel" button not clicked
+                self._exit()
+        elif self.backend.flashing:
+            if CTkMessagebox(
+                title="Exit ?", icon="warning",
+                message="MicroTamagotchi is in flashing, do you want to close this program ?",
+                option_1="Cancel", option_2="No", option_3="Yes"
+            ).get() == "Yes":
+                self._exit(wait=False)
+        else:
+            # ask quit app
+            if CTkMessagebox(
+                title="Exit ?", icon="question", 
+                message="Do you want to close this program ?",
+                option_1="Cancel", option_2="No", option_3="Yes"
+            ).get() == "Yes":
+                self._exit()
 
 
 # launch app if this file is launched

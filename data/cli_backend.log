@@ -1,0 +1,28 @@
+16.58.31-INFO: Microbit Backend -> started
+16.58.31-DEBUG: show conn stat -> failed (TypeError: 'NoneType' object is not callable)
+18.50.46-INFO: Microbit Backend -> started
+18.50.46-DEBUG: show conn stat -> failed (TypeError: 'NoneType' object is not callable)
+18.50.48-DEBUG: try to connect [None]
+18.50.48-DEBUG: try to connect [COM8]
+18.50.49-DEBUG: connected to [COM8]
+18.50.49-INFO: -> connected to [COM8]
+18.50.49-DEBUG: show conn stat -> failed (TypeError: 'NoneType' object is not callable)
+18.50.49-DEBUG: exec payload 'from microbit import display, Image;display.show(Image('00000:00000:90909:00000:00000:'))'
+18.50.55-DEBUG: exec cmd 'put' with args ['images.mtd']
+18.50.55-ERROR: failed to exec cmd (FileNotFoundError: [Errno 2] No such file or directory: 'images.mtd')
+18.51.53-DEBUG: exec cmd 'put' with args ['images.mtd']
+18.51.53-ERROR: failed to exec cmd (FileNotFoundError: [Errno 2] No such file or directory: 'images.mtd')
+18.52.05-DEBUG: exec cmd 'put' with args ['images.mtd']
+18.52.05-ERROR: failed to exec cmd (FileNotFoundError: [Errno 2] No such file or directory: 'images.mtd')
+10.09.19-INFO: Microbit Backend -> started
+10.09.19-DEBUG: show conn stat -> failed (TypeError: 'NoneType' object is not callable)
+10.09.25-DEBUG: try to connect [None]
+10.09.25-DEBUG: try to connect [COM8]
+10.09.26-DEBUG: connected to [COM8]
+10.09.26-INFO: -> connected to [COM8]
+10.09.26-DEBUG: show conn stat -> failed (TypeError: 'NoneType' object is not callable)
+10.09.26-DEBUG: exec payload 'from microbit import display, Image;display.show(Image('00000:00000:90909:00000:00000:'))'
+10.09.33-DEBUG: exec cmd 'get' with args ['images.mtd']
+10.10.18-DEBUG: wait terminated ...
+10.10.18-INFO: -> [COM8] disconnected
+10.10.18-INFO: Microbit Backend -> exit

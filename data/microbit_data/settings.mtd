@@ -1,5 +1,5 @@
 {
-    "figure": "dog",
-    "emotion": "happy",
-    "add_images_files": []
+    "character": "dog",
+    "characters_list": ["basic", "fish", "creeper", "dog"],
+    "emotion": "happy"
 }

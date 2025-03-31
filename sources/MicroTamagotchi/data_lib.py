@@ -10,7 +10,7 @@
 FILE_EXT = ".mtd" # Micro Tamagochi Data
 
 def dump(data:dict, filename:str):
-    """Dump data in a .mtd file."""
+    """Dump dict in a .mtd file."""
     # check file ext
     assert filename.endswith(FILE_EXT), "file ext must be %s"%FILE_EXT
     # write data
@@ -18,7 +18,7 @@ def dump(data:dict, filename:str):
         return repr(f_write.write(data)) # transform data in str
 
 def load(filename:str):
-    """Load data of .mtd file."""
+    """Load dict of .mtd file."""
     # check file ext
     assert filename.endswith(FILE_EXT), "file ext must be %s"%FILE_EXT
     # load data

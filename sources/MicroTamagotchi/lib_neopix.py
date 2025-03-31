@@ -23,14 +23,14 @@ lst_values_pulse = None
 indx_value_pulse = None
 
 def init_neopix(nb, pin):
-    """ Function for init neopix """
+    """ Function for init neopix"""
     global nb_leds
     global np
     nb_leds = nb
     np = NeoPixel(pin, nb_leds)
 
 
-def neopix_actualize(new_data=None):
+def actualize_neopix(new_data=None):
     """Function for actualize neopix with mode set"""
     global actual_data
     if new_data != None:

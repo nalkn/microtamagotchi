@@ -11,7 +11,8 @@ import gc
 
 
 # server program (with neopix)
-def server(radio, set_neopix, neopix_actualize, off_neopix):
+def server(radio, set_np, actualize_np, off_np):
+    """MicroTamagotchi Game - Server Program"""
     # imports
     from microbit import display, Image, sleep, pin_logo
     import machine
@@ -34,7 +35,7 @@ def server(radio, set_neopix, neopix_actualize, off_neopix):
 
     # animations for wait players conneted
     display.show(Image.ASLEEP)
-    set_neopix("pulse", (red, 3), True)
+    set_np("pulse", (red, 3), True)
     while not (player1_started and player2_started):
         message = radio.receive()
 
@@ -47,19 +48,19 @@ def server(radio, set_neopix, neopix_actualize, off_neopix):
             elif message == "player2_started":
                 player2_started = True
         
-        neopix_actualize()
+        actualize_np()
         gc.collect()
 
     # send start
     radio.send("starting")
-    off_neopix()
+    off_np()
     for i in range(3, 0, -1):
         display.show(i)
         sleep(1000)
     radio.send("started")
 
     # while loop for manage events
-    set_neopix("count", (count, blue,green), True)
+    set_np("count", (count, blue,green), True)
     display.show(Image.HAPPY)
     while True:
         message = radio.receive()
@@ -76,7 +77,7 @@ def server(radio, set_neopix, neopix_actualize, off_neopix):
                 actualize_count(count-1)
                 str_cnt = str(int(count))
                 radio.send(str_cnt)
-            neopix_actualize((count, blue,green))
+            actualize_np((count, blue,green))
             if count == 30:
                 count_locked = True
                 display.scroll("player 1 win")
@@ -89,6 +90,7 @@ def server(radio, set_neopix, neopix_actualize, off_neopix):
 
 # player program
 def player(radio):
+    """MicroTamagotchi Game - Server Program"""
     # imports
     from microbit import display, Image, set_volume, sleep, button_a,button_b,pin_logo
     from time import ticks_ms
