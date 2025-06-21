@@ -2361,3 +2361,7 @@
 13.32.23-DEBUG: restart [COM8]
 13.32.23-DEBUG: wait terminated ...
 13.32.23-INFO: Microbit Backend -> exit
+13.36.19-INFO: Microbit Backend -> started
+13.36.19-DEBUG: show conn stat
+13.38.08-DEBUG: wait terminated ...
+13.38.08-INFO: Microbit Backend -> exit
